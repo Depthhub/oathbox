@@ -57,8 +57,7 @@ class OathboxChain:
         network: str = "testnet",
         rpc_url: str | None = None,
     ):
-        if not contract_id:
-            raise ChainError("CONTRACT_ID is not set")
+        # A missing contract id fails on first use, not at startup.
         self.contract_id = contract_id
         self.network = network
         self.account_id = account_id
@@ -79,6 +78,8 @@ class OathboxChain:
 
     # ---------- views ----------
     def _call_view(self, method: str, args: dict) -> Any:
+        if not self.contract_id:
+            raise ChainError("CONTRACT_ID is not set in .env")
         try:
             return self._view.view(self.contract_id, method, args)
         except near.NearError as e:
@@ -110,6 +111,8 @@ class OathboxChain:
 
     # ---------- writes ----------
     def _call(self, method: str, args: dict, deposit: str) -> tuple[Any, str]:
+        if not self.contract_id:
+            raise ChainError("CONTRACT_ID is not set in .env")
         if self._signer is None:
             raise ChainError("NEAR_ACCOUNT_ID / NEAR_PRIVATE_KEY are not set; cannot write")
         try:

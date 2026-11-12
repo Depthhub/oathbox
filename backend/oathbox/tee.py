@@ -32,8 +32,8 @@ class TEEError(RuntimeError):
 
 class NearAICloud:
     def __init__(self, api_key: str, base_url: str = DEFAULT_BASE_URL, http: httpx.AsyncClient | None = None):
-        if not api_key:
-            raise TEEError("NEARAI_API_KEY is not set")
+        # A missing key fails on first use, not at startup, so the server and the
+        # tests run before .env is filled in.
         self._key = api_key
         self._base = base_url.rstrip("/")
         self._http = http or httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=15.0))
@@ -46,6 +46,8 @@ class NearAICloud:
         await self._http.aclose()
 
     def _headers(self, **extra: str) -> dict[str, str]:
+        if not self._key:
+            raise TEEError("NEARAI_API_KEY is not set in .env")
         return {"Authorization": f"Bearer {self._key}", "Accept": "application/json", **extra}
 
     async def attestation(self, model: str, nonce_hex: str) -> tuple[bytes, dict]:

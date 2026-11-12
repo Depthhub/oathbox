@@ -60,6 +60,7 @@ def client(sample_room, tmp_path, monkeypatch):
     room = tmp_path / "room"  # never touch the real sample room
     shutil.copytree(sample_room, room)
     monkeypatch.setattr(appmod, "SAMPLE_DIR", room)
+    monkeypatch.setattr(appmod, "SAMPLE_ROOM_ID", "ledgerlight-demo")  # independent of .env
     monkeypatch.setattr(appmod, "tamper", appmod.Tamper(room, tmp_path / "state"))
     monkeypatch.setattr(appmod, "store", appmod.Store(tmp_path / "state"))
     monkeypatch.setattr(appmod, "auth", appmod.Auth(tmp_path / "state", "test-secret"))
