@@ -54,6 +54,11 @@ Everything marked **VERIFY** was not confirmed and must be checked on first cont
 - UI no longer shows Ledgerlight (no suggestions, tamper card, "fictional" note); `/api/rooms` lists only the signed-in founder's rooms. `#ask` and `#founder` without a room are home pages (paste a room link / your rooms). The sample still works at `#ask-ledgerlight-demo` for `scripts/e2e.py`.
 - NEAR logo SVGs copied unaltered from near.org's header (near.org/brand is 404) into `web/src/near-logo.jsx`; mark in the network pill, "Built on NEAR" badge in the footer.
 
+**2026-11-12 — README, setup, submission kit; clean-clone test**
+- Pushed to private GitHub `Depthhub/oathbox` (author Metasam, no-reply email). README (how it works, what is/ isn't proven, privacy, filter limits, quickstart, contract, licenses, ported code, AI-assistance disclosure), Makefile + scripts/install.ps1 + demo.ps1, `.env.example` defaults (live contract, model, unique SAMPLE_ROOM_ID), SUBMISSION.md (form fields, 1,580-char idea, 276-char X post, 60 s video script).
+- Clean clone caught: install.ps1 splatting bug (py opened a REPL); server refused to start without NEARAI_API_KEY/CONTRACT_ID (now fail on first use); tests read SAMPLE_ROOM_ID from .env (now pinned). After fixes: 46/46 with template .env, with no .env, and in the main checkout; server serves page, logo and clear errors with blank keys. Web build took 17 min on this machine.
+- Remaining (user): make repo public, record video, X post, form. C: had only 5.5 GB free.
+
 **2026-11-12 — New Oathbox logo (mascot)**
 - User's orange-cube mascot: original in `web/public/brand/oathbox-mascot-original.webp`; face cropped with transparent background to `oathbox-mark-{64,128,512}.png` (header mark, favicon, touch icon). Backend now serves files from `web/dist` (resolved path must stay inside dist; traversal falls back to index.html).
 
