@@ -1,0 +1,31 @@
+# Secrets
+.env
+*.pem
+**/neardev/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Node / web
+node_modules/
+web/dist/
+
+# Rust (the prebuilt wasm in contract/res/ IS committed)
+contract/target/
+target/
+
+# Runtime state (public attestation reports cache, tamper backup)
+.oathbox/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local QR code for the phone link (contains a LAN address)
+oathbox-phone-link.png

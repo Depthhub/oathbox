@@ -1,0 +1,7 @@
+# The sample data room is hashed byte-for-byte and its root is committed on NEAR.
+# Never let git rewrite line endings in it, or a fresh Windows clone gets a different root.
+sample-dataroom/** -text
+
+# Shell scripts must keep LF so they run in WSL / Git Bash.
+*.sh text eol=lf
+Makefile text eol=lf
