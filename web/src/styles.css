@@ -315,6 +315,14 @@ body::before {
 .meter { height: 6px; border-radius: var(--r-pill); background: rgba(17, 17, 17, 0.12); overflow: hidden; }
 .meter span { display: block; height: 100%; border-radius: inherit; transition: width 0.32s var(--ease); }
 
+/* public demo notice */
+.demo-note { background: var(--butter); color: var(--on-pastel); font-size: 14px; }
+.demo-note-inner {
+  max-width: 1160px; margin: 0 auto; padding-block: 10px;
+  padding-left: var(--gutter-l); padding-right: var(--gutter-r);
+}
+.demo-note a { color: inherit; }
+
 /* Built on NEAR badge: logo kept unaltered with clear space around it */
 .near-badge {
   display: inline-flex; align-items: center; gap: 8px;

@@ -129,6 +129,15 @@ make demo               # http://127.0.0.1:8000   (Windows: .\scripts\demo.ps1)
 
 **Founder flow in the app:** open `http://127.0.0.1:8000/#new`, connect your wallet, confirm it's you, upload a folder, click **Seal in wallet**, then copy the investor link from the Founder page and ask away. Every answer links to its receipt on the **Verify** page.
 
+## Deploy
+
+The repo includes a [`Dockerfile`](Dockerfile) (web build + Python runtime, pinned by [`backend/requirements.lock`](backend/requirements.lock)) and a Render Blueprint, [`render.yaml`](render.yaml). On Render: **New → Blueprint →** this repo, then enter `NEARAI_API_KEY`, `NEAR_ACCOUNT_ID` and `NEAR_PRIVATE_KEY` when asked.
+
+- **Persistent disk at `/data`** (`OATHBOX_STATE_DIR`): uploaded rooms, attestation reports and room owners must survive restarts.
+- **`PUBLIC_DEMO=1`** shows a "don't upload confidential files" notice and turns off the tamper switch.
+- **Limits** keep strangers from spending your credits: `ASK_LIMIT_PER_HOUR` per visitor, `ASK_LIMIT_PER_DAY` in total, plus `UPLOAD_LIMIT_PER_HOUR` and `VERIFY_LIMIT_PER_HOUR`. All are off when unset (local use).
+- **[`attestations/`](attestations)** ships the public attestation reports for receipts made before a deployment, so they still verify on a fresh server.
+
 ## The contract
 
 [`contract/src/lib.rs`](contract/src/lib.rs), Rust with `near-sdk` 5.30. Prebuilt wasm: [`contract/res/oathbox_contract.wasm`](contract/res/oathbox_contract.wasm) (sha256 `043bd113cdbe9e17cdfecea2047605c5878f6d903453a931008f0421335af2c3`, matching the deployed code). Deploy transaction: [`3HEXFFVP…`](https://testnet.nearblocks.io/txns/3HEXFFVP1pBHdRt3hpJzow4qy8TGXL33hjHvwokNkk2j).

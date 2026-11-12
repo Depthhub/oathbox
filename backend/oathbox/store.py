@@ -22,8 +22,11 @@ _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class Store:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, bundled_attestations: Path | None = None):
         self.root = Path(root)
+        # Read-only reports shipped with the app (attestations/ in the repo), so receipts
+        # made before a fresh deployment still verify there.
+        self.bundled_attestations = Path(bundled_attestations) if bundled_attestations else None
         self.attestations = self.root / "attestations"
         self.manifests = self.root / "manifests"
         self.rooms = self.root / "rooms"
@@ -42,8 +45,10 @@ class Store:
     def get_attestation(self, h: str) -> bytes | None:
         if not _HEX64.match(h or ""):
             return None
-        path = self.attestations / f"{h}.json"
-        return path.read_bytes() if path.exists() else None
+        for folder in (self.attestations, self.bundled_attestations):
+            if folder is not None and (folder / f"{h}.json").exists():
+                return (folder / f"{h}.json").read_bytes()
+        return None
 
     # commit-time manifests (file paths + hashes only, never contents)
     def save_manifest(self, room_id: str, digest: DataRoomDigest) -> None:

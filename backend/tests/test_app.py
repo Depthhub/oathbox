@@ -220,3 +220,15 @@ def test_server_only_seals_the_sample_room(client):
     c, _ = client
     c.post("/api/rooms", data={"room_id": "mine"}, headers=_as("acme.testnet"), files=_files(("a.txt", b"x")))
     assert c.post("/api/rooms/mine/commit").status_code == 403
+
+
+def test_public_demo_turns_off_tamper_and_limits_uploads(client, monkeypatch):
+    c, _ = client
+    monkeypatch.setattr(appmod, "PUBLIC_DEMO", True)
+    assert c.get("/api/config").json()["public_demo"] is True
+    assert c.post("/api/demo/tamper", json={"on": True}).status_code == 403
+    monkeypatch.setattr(appmod, "upload_limit", appmod.RateLimiter(per_ip_per_hour=1, what="uploads"))
+    h = _as("acme.testnet")
+    assert c.post("/api/rooms", data={"room_id": "one"}, headers=h, files=_files(("a.txt", b"1"))).status_code == 200
+    r = c.post("/api/rooms", data={"room_id": "two"}, headers=h, files=_files(("a.txt", b"2")))
+    assert r.status_code == 429 and "uploads an hour" in r.json()["detail"]

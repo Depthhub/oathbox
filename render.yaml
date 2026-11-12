@@ -1,0 +1,49 @@
+# Render Blueprint: Dashboard -> New -> Blueprint -> pick this repo.
+# You'll be asked for the three secret values (sync: false). Everything else is set here.
+services:
+  - type: web
+    name: oathbox
+    runtime: docker
+    plan: starter            # a persistent disk needs a paid instance; free instances lose uploaded rooms
+    region: frankfurt
+    healthCheckPath: /api/config
+    autoDeploy: true
+    disk:
+      name: oathbox-data
+      mountPath: /data       # uploaded rooms, attestation reports, room owners, session key
+      sizeGB: 1
+    domains:
+      - oathbox.tech
+      - www.oathbox.tech
+    envVars:
+      # secrets: entered in the Render dashboard, never in git
+      - key: NEARAI_API_KEY
+        sync: false
+      - key: NEAR_ACCOUNT_ID
+        sync: false
+      - key: NEAR_PRIVATE_KEY
+        sync: false
+      - key: OATHBOX_SESSION_SECRET
+        generateValue: true
+      # public settings
+      - key: CONTRACT_ID
+        value: oathbox.builtbysammy.testnet
+      - key: NEAR_NETWORK
+        value: testnet
+      - key: MODEL_ID
+        value: Qwen/Qwen3.6-35B-A3B-FP8
+      - key: SAMPLE_ROOM_ID
+        value: ledgerlight-demo
+      - key: OATHBOX_STATE_DIR
+        value: /data
+      # public-demo safety: notice + tamper off + limits so strangers can't burn credits
+      - key: PUBLIC_DEMO
+        value: "1"
+      - key: ASK_LIMIT_PER_HOUR
+        value: "10"
+      - key: ASK_LIMIT_PER_DAY
+        value: "150"
+      - key: UPLOAD_LIMIT_PER_HOUR
+        value: "5"
+      - key: VERIFY_LIMIT_PER_HOUR
+        value: "60"

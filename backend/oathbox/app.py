@@ -29,7 +29,7 @@ from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 from . import __version__
 from .auth import Auth, AuthError
 from .chain import ChainError, OathboxChain
+from .ratelimit import RateLimiter
 from .hashing import digest_files, read_room, sha256_hex
 from .pipeline import ask as run_ask
 from .prompt import DISCLOSURE_RULES, build_request_body
@@ -44,7 +45,7 @@ from .store import Store, changed_files
 from .tamper import Tamper
 from .tee import NearAICloud, TEEError, answer_text
 from .verify import (
-    FAIL, NA, PASS, Check, badge, check_model_report, check_receipt_signature,
+    ERROR, FAIL, NA, PASS, Check, badge, check_model_report, check_receipt_signature,
 )
 
 REPO = Path(__file__).resolve().parents[2]
@@ -54,7 +55,24 @@ MODEL_ID = os.getenv("MODEL_ID", "").strip()
 NETWORK = os.getenv("NEAR_NETWORK", "testnet")
 SAMPLE_ROOM_ID = os.getenv("SAMPLE_ROOM_ID", "ledgerlight-demo")
 SAMPLE_DIR = REPO / os.getenv("DATAROOM_DIR", "sample-dataroom")
-STATE_DIR = REPO / ".oathbox"
+# Where uploaded rooms, attestation reports and room metadata live. On a host, point
+# this at a persistent disk (e.g. /data), or uploaded rooms vanish on restart.
+STATE_DIR = Path(os.getenv("OATHBOX_STATE_DIR", "").strip() or REPO / ".oathbox")
+# PUBLIC_DEMO=1 on a public server: shows a "don't upload confidential files" notice
+# and turns off the sample room's tamper switch (anyone could flip it).
+PUBLIC_DEMO = os.getenv("PUBLIC_DEMO", "").strip().lower() in ("1", "true", "yes")
+
+
+def _int_env(name: str) -> int:
+    try:
+        return int(os.getenv(name, "0").strip() or 0)
+    except ValueError:
+        return 0
+
+
+ask_limit = RateLimiter(_int_env("ASK_LIMIT_PER_HOUR"), _int_env("ASK_LIMIT_PER_DAY"), "questions")
+upload_limit = RateLimiter(_int_env("UPLOAD_LIMIT_PER_HOUR"), 0, "uploads")
+verify_limit = RateLimiter(_int_env("VERIFY_LIMIT_PER_HOUR"), 0, "verifications")
 WEB_DIST = REPO / "web" / "dist"
 # The whole room goes into the model's context on every question, so keep it small.
 MAX_UPLOAD_BYTES = 300_000
@@ -67,7 +85,7 @@ COMMIT_DEPOSIT_YOCTO = str(5 * 10**22)   # 0.05 NEAR; the contract keeps the sto
 BACKEND_DEPOSIT_YOCTO = str(10**22)      # 0.01 NEAR, same
 PENDING_TTL_S = 3600                     # an unsealed upload holds its name for an hour
 
-store = Store(STATE_DIR)
+store = Store(STATE_DIR, bundled_attestations=REPO / "attestations")
 tamper = Tamper(SAMPLE_DIR, STATE_DIR)
 auth = Auth(STATE_DIR, os.getenv("OATHBOX_SESSION_SECRET", "").strip() or None)
 _write_lock = asyncio.Lock()
@@ -139,6 +157,12 @@ def founder(account: str | None = Depends(viewer)) -> str:
     if not account:
         raise HTTPException(401, "Connect your NEAR wallet first.")
     return account
+
+
+def _ip(request: Request) -> str | None:
+    """Visitor address. Behind a host's proxy, uvicorn --proxy-headers fills this
+    from X-Forwarded-For."""
+    return request.client.host if request.client else None
 
 
 def _owner(room_id: str, onchain: dict | None) -> str | None:
@@ -229,6 +253,8 @@ async def config():
         "max_upload_bytes": MAX_UPLOAD_BYTES,
         "max_upload_files": MAX_UPLOAD_FILES,
         "backend_account": chain.account_id,
+        "public_demo": PUBLIC_DEMO,
+        "ask_limit_per_hour": ask_limit.per_ip_per_hour,
     }
 
 
@@ -322,12 +348,13 @@ async def commit_room(room_id: str):
 
 
 @app.post("/api/rooms")
-async def upload_room(room_id: str = Form(...), files: list[UploadFile] = File(...),
+async def upload_room(request: Request, room_id: str = Form(...), files: list[UploadFile] = File(...),
                       account: str = Depends(founder)):
     """Stage files for the signed-in founder. Nothing is sealed yet: the founder's own
     wallet seals it on NEAR next, then calls /confirm."""
     if room_id == SAMPLE_ROOM_ID:
         raise HTTPException(400, "That name is reserved for the sample room.")
+    upload_limit.check(_ip(request))
     room_dir = _room_dir(room_id)
     if await _onchain_room(room_id):
         raise HTTPException(409, "That room name is taken. Pick another.")
@@ -399,7 +426,7 @@ class AskBody(BaseModel):
 
 
 @app.post("/api/rooms/{room_id}/ask")
-async def ask_room(room_id: str, body: AskBody):
+async def ask_room(room_id: str, body: AskBody, request: Request):
     chain = _chain()
     files, digest = _local(room_id)
     if digest is None:
@@ -424,6 +451,7 @@ async def ask_room(room_id: str, body: AskBody):
         })
 
     # 2-4. attest -> exact-bytes completion -> signature -> disclosure filter
+    ask_limit.check(_ip(request))  # only questions that reach the model count
     out = await run_ask(app.state.cloud, files, body.question, MODEL_ID)
     att_hash = store.put_attestation(out.attestation_bytes)  # public, no room data
     if not out.delivered:
@@ -506,7 +534,8 @@ class VerifyBody(BaseModel):
 
 
 @app.post("/api/verify")
-async def verify(body: VerifyBody):
+async def verify(body: VerifyBody, request: Request):
+    verify_limit.check(_ip(request))
     chain = _chain()
     receipt = await asyncio.to_thread(chain.get_receipt, body.receipt_id)
     if receipt is None:
@@ -520,9 +549,13 @@ async def verify(body: VerifyBody):
 
     # Public attestation report, by the hash stored on-chain
     report_bytes = store.get_attestation(receipt["attestation_hash"])
-    if report_bytes is None or sha256_hex(report_bytes) != receipt["attestation_hash"]:
+    if report_bytes is None:
+        # Missing is "couldn't check", not "forged": the report lives on whichever server took the question.
+        checks.append(Check("attestation_available", "Attestation report matches the on-chain hash", ERROR,
+                            "this server doesn't have the attestation report for this receipt"))
+    elif sha256_hex(report_bytes) != receipt["attestation_hash"]:
         checks.append(Check("attestation_available", "Attestation report matches the on-chain hash", FAIL,
-                            "report not found"))
+                            "stored report does not match the on-chain hash"))
     else:
         checks.append(Check("attestation_available", "Attestation report matches the on-chain hash", PASS))
         report = json.loads(report_bytes)
@@ -581,6 +614,8 @@ class TamperBody(BaseModel):
 
 @app.post("/api/demo/tamper")
 async def demo_tamper(body: TamperBody):
+    if PUBLIC_DEMO:
+        raise HTTPException(403, "The tamper demo is turned off on the public server.")
     try:
         tamper.enable() if body.on else tamper.disable()
     except RuntimeError as e:

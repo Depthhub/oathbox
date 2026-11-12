@@ -58,3 +58,16 @@ def test_receipt_signature_from_onchain_fields():
     checks, signer = check_receipt_signature(receipt, {acct.address})
     assert signer != acct.address
     assert checks[1].status == FAIL
+
+
+def test_bundled_attestations_are_a_read_only_fallback(tmp_path):
+    bundled = tmp_path / "bundled"
+    bundled.mkdir()
+    data = b'{"public":"report"}'
+    from oathbox.hashing import sha256_hex
+    h = sha256_hex(data)
+    (bundled / f"{h}.json").write_bytes(data)
+    s = Store(tmp_path / "state", bundled_attestations=bundled)
+    assert s.get_attestation(h) == data           # found in the bundle
+    assert not (tmp_path / "state" / "attestations" / f"{h}.json").exists()
+    assert s.get_attestation("ab" * 32) is None   # unknown stays unknown

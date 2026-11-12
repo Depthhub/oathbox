@@ -59,6 +59,14 @@ export default function App() {
         </div>
       </header>
 
+      {config?.public_demo ? (
+        <div className="demo-note" role="note">
+          <div className="demo-note-inner">
+            <b>Public demo on NEAR testnet.</b> Don't upload confidential files: this server can read uploaded rooms.
+            For real use, run Oathbox yourself from <a href="https://github.com/Depthhub/oathbox" target="_blank" rel="noreferrer">the repo</a>.
+          </div>
+        </div>
+      ) : null}
       {error ? <div className="page"><ErrorBanner error={error} /></div> : null}
       {config ? (
         route.page === "founder" ? <Founder key={roomId || "home"} config={config} roomId={roomId} />
