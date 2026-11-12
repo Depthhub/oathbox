@@ -8,6 +8,7 @@ A founder seals a data room (metrics, cap table, contracts, code) by writing its
 
 Built for the NEAR hackathon, Privacy track.
 
+- **Live demo:** [oathbox.tech](https://oathbox.tech) (public demo on NEAR testnet — don't upload confidential files)
 - **Contract:** [`oathbox.builtbysammy.testnet`](https://testnet.nearblocks.io/address/oathbox.builtbysammy.testnet) on NEAR testnet
 - **First real receipt:** receipt #0, [transaction `4RXpq783…GKVqKZg`](https://testnet.nearblocks.io/txns/4RXpq783rnK5hgvcFxg3X5YAeiVSWLHWXouTMGKVqKZg)
 - **Demo video:** _link added on submission_ · **X post:** _link added on submission_
@@ -131,7 +132,7 @@ make demo               # http://127.0.0.1:8000   (Windows: .\scripts\demo.ps1)
 
 ## Deploy
 
-The repo includes a [`Dockerfile`](Dockerfile) (web build + Python runtime, pinned by [`backend/requirements.lock`](backend/requirements.lock)) and a Render Blueprint, [`render.yaml`](render.yaml). On Render: **New → Blueprint →** this repo, then enter `NEARAI_API_KEY`, `NEAR_ACCOUNT_ID` and `NEAR_PRIVATE_KEY` when asked.
+The live demo at **[oathbox.tech](https://oathbox.tech)** runs on **Azure Container Apps** (Azure for Students credit). GitHub Actions builds the [`Dockerfile`](Dockerfile) into `ghcr.io/depthhub/oathbox` on every push ([`.github/workflows/image.yml`](.github/workflows/image.yml)); the app is defined in [`azure/containerapp.yaml`](azure/containerapp.yaml) with an Azure Files share mounted at `/data`; [`scripts/azure-set-secrets.ps1`](scripts/azure-set-secrets.ps1) copies the three keys from `.env` into encrypted Container App secrets without printing them. Python dependencies are pinned by [`backend/requirements.lock`](backend/requirements.lock). A Render Blueprint, [`render.yaml`](render.yaml), is included as an alternative.
 
 - **Persistent disk at `/data`** (`OATHBOX_STATE_DIR`): uploaded rooms, attestation reports and room owners must survive restarts.
 - **`PUBLIC_DEMO=1`** shows a "don't upload confidential files" notice and turns off the tamper switch.

@@ -1,0 +1,52 @@
+# Azure Container App for Oathbox. Applied with:
+#   az containerapp create -g oathbox-rg -n oathbox --yaml azure/containerapp.yaml
+# Secrets (nearai-api-key, near-account-id, near-private-key) are added afterwards by
+# scripts/azure-set-secrets.ps1 from your .env; session-secret is random.
+location: germanywestcentral
+properties:
+  environmentId: __ENVIRONMENT_ID__
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: auto
+      allowInsecure: false
+    secrets:
+      - name: session-secret
+        value: __SESSION_SECRET__
+  template:
+    containers:
+      - name: oathbox
+        image: ghcr.io/depthhub/oathbox:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - { name: OATHBOX_SESSION_SECRET, secretRef: session-secret }
+          - { name: OATHBOX_STATE_DIR, value: /data }
+          - { name: CONTRACT_ID, value: oathbox.builtbysammy.testnet }
+          - { name: NEAR_NETWORK, value: testnet }
+          - { name: MODEL_ID, value: Qwen/Qwen3.6-35B-A3B-FP8 }
+          - { name: SAMPLE_ROOM_ID, value: ledgerlight-demo }
+          - { name: PUBLIC_DEMO, value: "1" }
+          - { name: ASK_LIMIT_PER_HOUR, value: "10" }
+          - { name: ASK_LIMIT_PER_DAY, value: "150" }
+          - { name: UPLOAD_LIMIT_PER_HOUR, value: "5" }
+          - { name: VERIFY_LIMIT_PER_HOUR, value: "60" }
+        probes:
+          - type: Liveness
+            httpGet: { path: /api/config, port: 8000 }
+            initialDelaySeconds: 20
+            periodSeconds: 30
+        volumeMounts:
+          - volumeName: data
+            mountPath: /data
+    # One replica: rate limits are in memory, and an always-on replica avoids cold starts.
+    scale:
+      minReplicas: 1
+      maxReplicas: 1
+    volumes:
+      - name: data
+        storageType: AzureFile
+        storageName: oathboxdata
