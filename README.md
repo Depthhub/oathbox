@@ -34,10 +34,10 @@ sequenceDiagram
     S->>S: Verify Intel TDX quote, NVIDIA evidence, nonce, signer key
     S->>T: Exact request bytes (files + question)
     T-->>S: Answer + ECDSA signature over sha256(request), sha256(response)
-    S->>S: Check signature and signer; run the leak filter
+    S->>S: Check signature and signer, then run the leak filter
     S->>N: record_receipt(hashes, signature, attestation hash)
     S-->>I: Answer + receipt bundle (kept in the investor's browser)
-    I->>S: Verify receipt #n (anyone can, from the number alone)
+    I->>S: Verify receipt n (anyone can, from the number alone)
 ```
 
 1. **Seal.** The founder connects a NEAR wallet (MyNearWallet or Meteor) and proves the account is theirs by signing a one-time message (NEP-413, no transaction). They upload files, then approve **one** transaction that seals the room's root hash under their own account and allow-lists this server to record receipts. The room is owned on chain by the founder, not by Oathbox.
