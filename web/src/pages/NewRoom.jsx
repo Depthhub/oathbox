@@ -63,21 +63,28 @@ export default function NewRoom({ config }) {
 
   const remove = (path) => { invalidate(); setFiles((prev) => prev.filter((f) => f.path !== path)); };
 
-  /* Step 1: store the files on this server. Nothing is sealed yet. */
+  /* Store the files, then open the wallet for the seal transaction in the same click.
+     If the browser blocks that window, the Seal button below is a second click. */
   const upload = async (e) => {
     e.preventDefault();
     if (!canUpload) return;
     setPhase("uploading");
     setError(null);
+    let result = null;
     try {
       const form = new FormData();
       form.append("room_id", id);
       files.forEach((f) => form.append("files", f.file, f.path));
-      setStaged(await api.upload(form));
-      setPhase("staged");
+      result = await api.upload(form);
+      setStaged(result);
+      setPhase("sealing");
+      await w.send(result.transaction);
+      setPhase("confirming");
+      await confirmSealed(result.room_id);
+      window.location.hash = `founder-${result.room_id}`;
     } catch (err) {
       setError(err);
-      setPhase("edit");
+      setPhase(result ? "staged" : "edit");
     }
   };
 
@@ -160,7 +167,6 @@ export default function NewRoom({ config }) {
               </div>
             ) : null}
 
-            <ErrorBanner error={error} />
           </div>
 
           <aside className="stack">
@@ -192,11 +198,18 @@ export default function NewRoom({ config }) {
                 </p>
               ) : null}
 
+              <ErrorBanner error={error} />
+              {error?.status === 409 ? (
+                <p className="body-s">This name is already sealed on NEAR, so there is no transaction for your wallet to sign. Change the room name and try again.</p>
+              ) : null}
+
               {!staged ? (
                 <>
-                  <p className="body-s">Uploading stores the files on this Oathbox server. Nothing is sealed until your wallet approves.</p>
+                  <p className="body-s">This stores the files, then opens your wallet to sign one transaction. Nothing is sealed until you approve it.</p>
                   <button type="submit" className="btn btn-primary" disabled={!canUpload}>
-                    {phase === "uploading" ? <><span className="spinner" aria-hidden="true" /> Uploading</> : "Upload files"}
+                    {phase === "uploading" ? <><span className="spinner" aria-hidden="true" /> Uploading</>
+                      : phase === "sealing" ? <><span className="spinner" aria-hidden="true" /> Waiting for your wallet</>
+                        : "Upload and seal"}
                   </button>
                 </>
               ) : (

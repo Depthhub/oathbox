@@ -98,10 +98,11 @@ export function WalletProvider({ config, children }) {
   const send = useCallback(async ({ receiver_id, calls }) => {
     const w = await wallet();
     return w.signAndSendTransaction({
+      signerId: accountId || undefined,
       receiverId: receiver_id,
       actions: calls.map((c) => actionCreators.functionCall(c.method, c.args, BigInt(c.gas), BigInt(c.deposit))),
     });
-  }, [wallet]);
+  }, [wallet, accountId]);
 
   const disconnect = useCallback(async () => {
     setToken(null);
