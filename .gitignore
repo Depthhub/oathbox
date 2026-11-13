@@ -29,3 +29,8 @@ Thumbs.db
 
 # Local QR code for the phone link (contains a LAN address)
 oathbox-phone-link.png
+
+# Private notes (copies live in Downloads\oathbox-private)
+SUBMISSION.md
+BUILD-PLAN.md
+.claude/
