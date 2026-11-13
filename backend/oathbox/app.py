@@ -120,7 +120,8 @@ async def _chain_error(_, exc: ChainError):
 
 @app.exception_handler(TEEError)
 async def _tee_error(_, exc: TEEError):
-    return JSONResponse(status_code=502, content={"detail": f"NEAR AI Cloud: {exc}"})
+    status = 403 if str(exc) == "attestation verification failed" else 502
+    return JSONResponse(status_code=status, content={"detail": f"NEAR AI Cloud: {exc}"})
 
 
 # ---------------------------------------------------------------- helpers

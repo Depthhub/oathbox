@@ -42,8 +42,8 @@ sequenceDiagram
 
 1. **Seal.** The founder connects a NEAR wallet (MyNearWallet or Meteor) and proves the account is theirs by signing a one-time message (NEP-413, no transaction). They upload files, then approve **one** transaction that seals the room's root hash under their own account and allow-lists this server to record receipts. The room is owned on chain by the founder, not by Oathbox.
 2. **Ask.** Before anything reaches the model, the server re-hashes the files. If even one byte changed since the seal, it refuses and records nothing.
-3. **Attest.** Each question gets a fresh 32-byte nonce. The server fetches the TEE's attestation report for that nonce and checks it (table below).
-4. **Answer.** The server sends the exact request bytes to the attested model. The model's TEE signs `model:sha256(request):sha256(response)`. The server checks that signature and that the signer is the key it just attested.
+3. **Attest.** Each question gets a fresh 32-byte nonce. The server fetches the TEE's attestation report for that nonce and checks it (table below). If any check fails (Intel TDX quote, debug mode, signer binding, nonce binding, workload config, RTMR3 replay, GPU evidence, or NVIDIA NRAS), Oathbox returns HTTP 403 and no file content is sent to the model.
+4. **Answer.** Only after those checks pass does the server send the exact request bytes to the attested model. The model's TEE signs `model:sha256(request):sha256(response)`. The server checks that signature and that the signer is the key it just attested.
 5. **Filter.** A leak filter rejects answers that copy code, data rows, long passages or any part of a secret from the files. A rejected answer is "withheld" and leaves no receipt.
 6. **Receipt.** The receipt on NEAR holds only hashes, the signature, the model id, the nonce and the attestation report's hash. The question and answer text stay with the investor.
 
@@ -80,7 +80,7 @@ With the investor's saved receipt (downloaded or kept in their browser), four mo
 
 | Data | Where it lives |
 |---|---|
-| Founder's files | On the Oathbox server, and sent only to the attested TEE endpoint. Only the owner sees file names in the app. |
+| Founder's files | Persist on the Oathbox server in `rooms/`. They are not deleted after an answer. They are sent to the model only after attestation passes. Only the owner sees file names in the app. Real deployments should self-host. |
 | Question and answer text | Only in the investor's browser and their downloaded receipt file. The server does not store them ([`pipeline.py`](backend/oathbox/pipeline.py) writes nothing to disk). |
 | On NEAR | Room root hash, file count, owner; per receipt: hashes, signature, model id, nonce, attestation hash. |
 | Server state (`.oathbox/`) | Public attestation reports, per-room file paths and hashes (to name a changed file), room owner and status, uploaded rooms. See [`store.py`](backend/oathbox/store.py). |
@@ -114,7 +114,7 @@ make install            # Windows PowerShell: .\scripts\install.ps1
 Fill in `.env` (created from `.env.example`): `NEARAI_API_KEY`, `NEAR_ACCOUNT_ID`, `NEAR_PRIVATE_KEY`, and a unique `SAMPLE_ROOM_ID`. Then:
 
 ```bash
-make test               # 46 backend tests, no network, no credits
+make test               # 53 backend tests, no network, no credits
 make e2e                # the whole flow against testnet + the real TEE
 make demo               # http://127.0.0.1:8000   (Windows: .\scripts\demo.ps1)
 ```
@@ -168,7 +168,7 @@ sample-dataroom/  Fictional "Ledgerlight" data room used by e2e.py
 ## Limitations and next steps
 
 - **Testnet only.** Not audited.
-- **The server sees the files.** Self-host, or (next) run the Oathbox server itself in a TEE so the operator can't read them either.
+- **Founder files persist on the server** in `rooms/`. The operator can read them, including after each answer. Real deployments should self-host. Running the server itself inside a TEE, so the operator can't read the files either, is a later step.
 - **Verification runs on the Oathbox server.** The checks are open source and use only public data, so anyone can re-run them from this repo; an in-browser verifier is a natural next step.
 - **Small rooms.** The whole room goes into the model's context on every question, so rooms are limited to 300 KB and 100 files of plain text. PDFs and spreadsheets should be exported as text or CSV.
 - **Anyone with the room link can ask.** Founder actions need a wallet sign-in; investor invite codes are not built yet.

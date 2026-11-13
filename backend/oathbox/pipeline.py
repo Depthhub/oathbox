@@ -60,6 +60,8 @@ async def ask(
         raise TEEError("no model attestation returned for this model; refusing to ask")
     verdicts: list[ModelVerdict] = [await check_model_report(c, nonce, cloud.http) for c in candidates]
     trusted = {v.signing_address.lower() for v in verdicts if v.signer_trusted}
+    if not trusted:
+        raise TEEError("attestation verification failed")
 
     # 2. exact-bytes completion
     body = build_request_body(model, files, question)

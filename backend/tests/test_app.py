@@ -79,6 +79,36 @@ def test_config_and_room(client):
     assert all("content" not in f for f in room["local"]["files"])
 
 
+def test_failed_attestation_returns_403_and_never_calls_chat(client):
+    c, fake = client
+    previous = appmod.app.state.cloud
+
+    class DeadCloud:
+        chat_calls = 0
+        http = previous.http
+
+        async def attestation(self, model, nonce):
+            # A report that fails signer checks before any quote or GPU call.
+            return b"{}", {"model_attestations": [{"signing_address": "zz", "signing_algo": "none"}]}
+
+        async def chat(self, body):
+            DeadCloud.chat_calls += 1
+            raise AssertionError("file content must not be sent")
+
+        async def signature(self, *a, **k):
+            raise AssertionError("signature must not be fetched")
+
+    appmod.app.state.cloud = DeadCloud()
+    try:
+        r = c.post("/api/rooms/ledgerlight-demo/ask", json={"question": "Is MRR growing?"})
+    finally:
+        appmod.app.state.cloud = previous
+    assert r.status_code == 403
+    assert r.json()["detail"] == "NEAR AI Cloud: attestation verification failed"
+    assert DeadCloud.chat_calls == 0
+    assert fake.recorded == []
+
+
 def test_tampered_room_is_refused_and_nothing_recorded(client, monkeypatch):
     c, fake = client
 
